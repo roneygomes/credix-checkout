@@ -1,17 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
 import { Order } from './interfaces/order.interface';
+import { CredixClient } from 'src/credix/credix.client';
+import { GetBuyerResponse } from 'src/credix/interfaces/responses.interface';
 
 @Injectable()
 export class OrdersService {
-  findAll(): Order[] {
-    return [
-      {
-        id: uuidv4(),
-      },
-      {
-        id: uuidv4(),
-      },
-    ];
+  constructor(private credixClient: CredixClient) {}
+
+  async checkout(order: Order): Promise<GetBuyerResponse> {
+    return await this.credixClient.getBuyer(order.taxId);
   }
 }
