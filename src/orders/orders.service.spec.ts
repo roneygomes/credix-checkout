@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { CredixClient } from '../credix/credix.client';
 import { ConfigService } from '@nestjs/config';
 import { OrdersService } from './orders.service';
+import { FinancingOption } from './interfaces/financing.interface';
 
 let getBuyerResponse: any = {};
 
@@ -18,7 +19,7 @@ jest.mock('../credix/credix.client', () => {
 
 const mockedCredixClient = jest.mocked(CredixClient);
 
-describe('checkout', () => {
+describe('on pre-checkout', () => {
   let service: OrdersService;
 
   beforeEach(async () => {
@@ -28,7 +29,7 @@ describe('checkout', () => {
     service = new OrdersService(credixClient);
   });
 
-  it('should throw an error when buyers credit is insufficient', async () => {
+  it('financing options are empty when credit is insufficient', async () => {
     let order: Order = {
       id: uuidv4(),
       taxId: '00000000000000',
@@ -38,12 +39,8 @@ describe('checkout', () => {
     getBuyerResponse.creditLimitAmountCents = 200;
     getBuyerResponse.availableCreditLimitAmountCents = 50;
 
-    expect.assertions(1);
+    let financingOptions = await service.preCheckout(order);
 
-    try {
-      await service.checkout(order);
-    } catch (e) {
-      expect((e as Error).message).toMatch('not enough credit available');
-    }
+    expect(financingOptions.length).toBe(0);
   });
 });

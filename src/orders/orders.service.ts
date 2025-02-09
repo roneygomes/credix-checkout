@@ -2,10 +2,26 @@ import { Injectable } from '@nestjs/common';
 import { Order } from './interfaces/order.interface';
 import { CredixClient } from '../credix/credix.client';
 import { GetBuyerResponse } from '../credix/interfaces/responses.interface';
+import { FinancingOption } from './interfaces/financing.interface';
 
 @Injectable()
 export class OrdersService {
   constructor(private credixClient: CredixClient) {}
+
+  async preCheckout(order: Order): Promise<FinancingOption[]> {
+    let financingOptions: FinancingOption[] = [];
+    let buyer = await this.credixClient.getBuyer(order.taxId);
+
+    if (order.amountCents < buyer.availableCreditLimitAmountCents) {
+      financingOptions.push({
+        name: 'credix credipay',
+        // TODO: check empty seller configs
+        baseFee: buyer.sellerConfigs[0].baseTransactionFeePercentage,
+      });
+    }
+
+    return financingOptions;
+  }
 
   async checkout(order: Order): Promise<GetBuyerResponse> {
     let buyer = await this.credixClient.getBuyer(order.taxId);
