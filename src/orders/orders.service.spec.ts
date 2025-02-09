@@ -3,15 +3,21 @@ import { v4 as uuidv4 } from 'uuid';
 import { CredixClient } from '../credix/credix.client';
 import { ConfigService } from '@nestjs/config';
 import { OrdersService } from './orders.service';
-import { FinancingOption } from './interfaces/financing.interface';
+
+let order: Order = {
+  id: uuidv4(),
+  taxId: '00000000000000',
+  amountCents: 100,
+};
 
 let getBuyerResponse: any = {};
+let getBuyerMock = jest.fn(() => getBuyerResponse);
 
 jest.mock('../credix/credix.client', () => {
   return {
     CredixClient: jest.fn().mockImplementation(() => {
       return {
-        getBuyer: jest.fn(() => getBuyerResponse),
+        getBuyer: getBuyerMock,
       };
     }),
   };
@@ -29,15 +35,19 @@ describe('on pre-checkout', () => {
     service = new OrdersService(credixClient);
   });
 
-  it('financing options are empty when credit is insufficient', async () => {
-    let order: Order = {
-      id: uuidv4(),
-      taxId: '00000000000000',
-      amountCents: 100,
-    };
-
+  it('credipay is not included when credit is insufficient', async () => {
     getBuyerResponse.creditLimitAmountCents = 200;
     getBuyerResponse.availableCreditLimitAmountCents = 50;
+
+    let financingOptions = await service.preCheckout(order);
+
+    expect(financingOptions.length).toBe(0);
+  });
+
+  it('credipay is not included when api call fails', async () => {
+    getBuyerMock = jest.fn(() => {
+      throw new Error('credix api call failed');
+    });
 
     let financingOptions = await service.preCheckout(order);
 
