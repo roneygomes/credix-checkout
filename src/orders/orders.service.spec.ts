@@ -1,49 +1,65 @@
 import { Order } from './interfaces/order.interface';
 import { v4 as uuidv4 } from 'uuid';
 import { CredixClient } from '../credix/credix.client';
-import { ConfigService } from '@nestjs/config';
 import { OrdersService } from './orders.service';
 import { FinancingOption } from './interfaces/financing.interface';
+import { Repository } from 'typeorm';
+import { InventoryItem } from '../inventory/inventory.entity';
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
 
-let order: Order;
-let getBuyerResponse: any;
-let getBuyerMock: any;
+let order: Order = {
+  id: uuidv4(),
+  items: [
+    {
+      id: 1,
+      amount: 10,
+    },
+  ],
+  buyerTaxId: '00000000000000',
+  sellerTaxId: '11111111111111',
+  amountCents: 100,
+};
 
-jest.mock('../credix/credix.client', () => {
-  return {
-    CredixClient: jest.fn().mockImplementation(() => {
-      return {
-        getBuyer: getBuyerMock,
-      };
-    }),
-  };
-});
+const mockRepository = {
+  findBy: jest.fn(),
+};
 
-const mockedCredixClient = jest.mocked(CredixClient);
+const mockCredixClient = {
+  getBuyer: jest.fn(),
+  createOrer: jest.fn(),
+};
 
 describe('on pre-checkout', () => {
   let service: OrdersService;
+  let repository: Repository<InventoryItem>;
 
-  beforeEach(() => {
-    mockedCredixClient.mockClear();
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        OrdersService,
+        {
+          provide: CredixClient,
+          useValue: mockCredixClient,
+        },
+        {
+          provide: getRepositoryToken(InventoryItem),
+          useValue: mockRepository,
+        },
+      ],
+    }).compile();
 
-    order = {
-      id: uuidv4(),
-      buyerTaxId: '00000000000000',
-      sellerTaxId: '11111111111111',
-      amountCents: 100,
-    };
-
-    getBuyerResponse = {};
-    getBuyerMock = jest.fn(() => getBuyerResponse);
-
-    let credixClient = new CredixClient(new ConfigService());
-    service = new OrdersService(credixClient);
+    service = module.get<OrdersService>(OrdersService);
+    repository = module.get<Repository<InventoryItem>>(
+      getRepositoryToken(InventoryItem),
+    );
   });
 
   it('shout not include credipay when credit is insufficient', async () => {
     order.amountCents = 100;
-    getBuyerResponse.availableCreditLimitAmountCents = 50;
+    mockCredixClient.getBuyer = jest.fn().mockResolvedValue({
+      availableCreditLimitAmountCents: 50,
+    });
 
     let financingOptions = await service.preCheckout(order);
 
@@ -51,8 +67,8 @@ describe('on pre-checkout', () => {
   });
 
   it('should not include credipay when api call fails', async () => {
-    getBuyerMock = jest.fn(() => {
-      throw new Error('credix api call failed');
+    mockCredixClient.getBuyer = jest.fn(() => {
+      new Error('credix api call failed');
     });
 
     let financingOptions = await service.preCheckout(order);
@@ -61,11 +77,9 @@ describe('on pre-checkout', () => {
   });
 
   it('should not include credipay when our seller is missing from buyer profile', async () => {
-    getBuyerResponse.sellerConfigs = [
-      {
-        taxId: 'not our tax id',
-      },
-    ];
+    mockCredixClient.getBuyer = jest.fn().mockResolvedValue({
+      sellerConfigs: [{ taxId: 'not our tax id' }],
+    });
 
     let financingOptions = await service.preCheckout(order);
 
@@ -75,13 +89,12 @@ describe('on pre-checkout', () => {
   it('should include credipay when buyer has credit', async () => {
     order.amountCents = 100;
 
-    getBuyerResponse.availableCreditLimitAmountCents = 200;
-    getBuyerResponse.sellerConfigs = [
-      {
-        taxId: order.sellerTaxId,
-        baseTransactionFeePercentage: 0.02,
-      },
-    ];
+    mockCredixClient.getBuyer = jest.fn().mockResolvedValue({
+      availableCreditLimitAmountCents: 200,
+      sellerConfigs: [
+        { taxId: order.sellerTaxId, baseTransactionFeePercentage: 0.02 },
+      ],
+    });
 
     let financingOptions = await service.preCheckout(order);
 
