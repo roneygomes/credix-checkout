@@ -1,5 +1,6 @@
 export interface Order {
   id: string;
-  taxId: string;
+  buyerTaxId: string;
+  sellerTaxId?: string;
   amountCents: number;
 }

@@ -10,21 +10,26 @@ export class OrdersService {
 
   async preCheckout(order: Order): Promise<FinancingOption[]> {
     let financingOptions: FinancingOption[] = [];
-    let buyer = await this.credixClient.getBuyer(order.taxId);
+    let buyer = await this.credixClient.getBuyer(order.buyerTaxId);
 
     if (order.amountCents < buyer.availableCreditLimitAmountCents) {
-      financingOptions.push({
-        name: 'credix credipay',
-        // TODO: check empty seller configs
-        baseFee: buyer.sellerConfigs[0].baseTransactionFeePercentage,
-      });
+      let sellerConfig = buyer.sellerConfigs.find(
+        (config) => config.taxId == order.sellerTaxId,
+      );
+
+      if (sellerConfig) {
+        financingOptions.push({
+          name: 'credix credipay',
+          baseFee: sellerConfig.baseTransactionFeePercentage,
+        });
+      }
     }
 
     return financingOptions;
   }
 
   async checkout(order: Order): Promise<GetBuyerResponse> {
-    let buyer = await this.credixClient.getBuyer(order.taxId);
+    let buyer = await this.credixClient.getBuyer(order.buyerTaxId);
 
     if (order.amountCents > buyer.availableCreditLimitAmountCents) {
       throw new Error('not enough credit available');
