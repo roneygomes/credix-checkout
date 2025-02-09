@@ -1,18 +1,31 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { Order } from './interfaces/order.interface';
 import { v4 as uuidv4 } from 'uuid';
-import { InsufficientCreditError } from './interfaces/errors.interface';
+import { CredixClient } from '../credix/credix.client';
+import { ConfigService } from '@nestjs/config';
 import { OrdersService } from './orders.service';
+
+let getBuyerResponse: any = {};
+
+jest.mock('../credix/credix.client', () => {
+  return {
+    CredixClient: jest.fn().mockImplementation(() => {
+      return {
+        getBuyer: jest.fn(() => getBuyerResponse),
+      };
+    }),
+  };
+});
+
+const mockedCredixClient = jest.mocked(CredixClient);
 
 describe('checkout', () => {
   let service: OrdersService;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [OrdersService],
-    }).compile();
+    mockedCredixClient.mockClear();
 
-    service = module.get<OrdersService>(OrdersService);
+    let credixClient = new CredixClient(new ConfigService());
+    service = new OrdersService(credixClient);
   });
 
   it('should throw an error when buyers credit is insufficient', async () => {
@@ -22,10 +35,15 @@ describe('checkout', () => {
       amountCents: 100,
     };
 
+    getBuyerResponse.creditLimitAmountCents = 200;
+    getBuyerResponse.availableCreditLimitAmountCents = 50;
+
+    expect.assertions(1);
+
     try {
-      service.checkout(order);
-    } catch (error) {
-      expect(error).toBeInstanceOf<InsufficientCreditError>(error);
+      await service.checkout(order);
+    } catch (e) {
+      expect((e as Error).message).toMatch('not enough credit available');
     }
   });
 });
