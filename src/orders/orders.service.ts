@@ -1,18 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Order } from './interfaces/order.interface';
 import { CredixClient } from '../credix/credix.client';
-import { GetBuyerResponse } from '../credix/interfaces/responses.interface';
 import { FinancingOption } from './interfaces/financing.interface';
-import { In, Repository } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { InventoryItem } from '../inventory/inventory.entity';
-import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private credixClient: CredixClient,
-    @InjectRepository(InventoryItem)
-    private inventoryRepository: Repository<InventoryItem>,
+    private dataSource: DataSource,
   ) {}
 
   async preCheckout(order: Order): Promise<FinancingOption[]> {
@@ -33,30 +30,39 @@ export class OrdersService {
           });
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn(`ignoring credix as a financing option; ${e}`);
+    }
 
     return financingOptions;
   }
 
-  async checkout(order: Order): Promise<GetBuyerResponse> {
-    let amountMap = new Map<number, number>(
-      order.items.map((i) => [i.id, i.amount]),
-    );
-
-    let items = await this.inventoryRepository.findBy({
-      id: In([...amountMap.keys()]),
+  async checkout(order: Order): Promise<void> {
+    await this.dataSource.transaction(async (entityManager) => {
+      await this.updateIventory(order, entityManager);
+      await this.credixClient.createOrder({});
     });
+  }
 
-    items.forEach((i) => {
-      i.amount = i.amount - amountMap.get(i.id)!;
-    });
+  private async updateIventory(
+    order: Order,
+    manager: EntityManager,
+  ): Promise<void> {
+    for (const { id, amount } of order.items) {
+      if (amount <= 0) {
+        throw new Error('invalid order amount');
+      }
 
-    let buyer = await this.credixClient.getBuyer(order.buyerTaxId);
+      const result = await manager
+        .createQueryBuilder()
+        .update(InventoryItem)
+        .set({ amount: () => `amount - ${amount}` })
+        .where('id = :id AND amount >= :amount', { id, amount })
+        .execute();
 
-    if (order.amountCents > buyer.availableCreditLimitAmountCents) {
-      throw new Error('not enough credit available');
+      if (result.affected === 0) {
+        throw new Error('not enough items in inventory');
+      }
     }
-
-    return buyer;
   }
 }

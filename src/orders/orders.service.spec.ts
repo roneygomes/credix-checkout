@@ -1,108 +1,231 @@
 import { Order } from './interfaces/order.interface';
 import { v4 as uuidv4 } from 'uuid';
 import { CredixClient } from '../credix/credix.client';
-import { OrdersService } from './orders.service';
 import { FinancingOption } from './interfaces/financing.interface';
-import { Repository } from 'typeorm';
-import { InventoryItem } from '../inventory/inventory.entity';
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
+import { OrdersService } from './orders.service';
+import { DataSource } from 'typeorm';
 
-let order: Order = {
-  id: uuidv4(),
-  items: [
-    {
-      id: 1,
-      amount: 10,
-    },
-  ],
-  buyerTaxId: '00000000000000',
-  sellerTaxId: '11111111111111',
-  amountCents: 100,
-};
-
-const mockRepository = {
-  findBy: jest.fn(),
-};
-
-const mockCredixClient = {
-  getBuyer: jest.fn(),
-  createOrer: jest.fn(),
-};
-
-describe('on pre-checkout', () => {
+describe('orders service', () => {
   let service: OrdersService;
-  let repository: Repository<InventoryItem>;
+  let order: Order;
+
+  let credixMock: {
+    getBuyer: jest.Mock;
+    createOrder: jest.Mock;
+  };
+
+  let queryMock: { execute: jest.Mock };
+  let dataSourceMock: { transaction: jest.Mock };
+
+  let rolledBack: boolean;
 
   beforeEach(async () => {
+    rolledBack = false;
+    order = {
+      id: uuidv4(),
+      items: [
+        { id: 1, amount: 10 },
+        { id: 2, amount: 10 },
+      ],
+      buyerTaxId: 'buyer cnpj',
+      sellerTaxId: 'seller cnpj',
+      amountCents: 100,
+    };
+
+    credixMock = {
+      getBuyer: jest.fn(),
+      createOrder: jest.fn(),
+    };
+
+    queryMock = {
+      execute: jest.fn().mockResolvedValue({
+        affected: order.items.length,
+      }),
+    };
+
+    const entityManagerMock = {
+      createQueryBuilder: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
+          set: jest.fn().mockReturnValue({
+            where: jest.fn().mockReturnValue(queryMock),
+          }),
+        }),
+      }),
+    };
+
+    dataSourceMock = {
+      transaction: jest.fn(async (callback) => {
+        try {
+          await callback(entityManagerMock);
+        } catch (e) {
+          rolledBack = true;
+          throw e;
+        }
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
         {
           provide: CredixClient,
-          useValue: mockCredixClient,
+          useValue: credixMock,
         },
         {
-          provide: getRepositoryToken(InventoryItem),
-          useValue: mockRepository,
+          provide: DataSource,
+          useValue: dataSourceMock,
         },
       ],
     }).compile();
 
     service = module.get<OrdersService>(OrdersService);
-    repository = module.get<Repository<InventoryItem>>(
-      getRepositoryToken(InventoryItem),
-    );
   });
 
-  it('shout not include credipay when credit is insufficient', async () => {
-    order.amountCents = 100;
-    mockCredixClient.getBuyer = jest.fn().mockResolvedValue({
-      availableCreditLimitAmountCents: 50,
+  describe('pre-checkout', () => {
+    it('shout not include credipay when credit is insufficient', async () => {
+      order.amountCents = 100;
+      credixMock.getBuyer = jest.fn().mockResolvedValue({
+        availableCreditLimitAmountCents: 50,
+      });
+
+      let financingOptions = await service.preCheckout(order);
+      expect(financingOptions.length).toBe(0);
     });
 
-    let financingOptions = await service.preCheckout(order);
+    it('should not include credipay when api call fails', async () => {
+      credixMock.getBuyer = jest.fn(() => {
+        throw new Error('bad gateway');
+      });
 
-    expect(financingOptions.length).toBe(0);
+      let financingOptions = await service.preCheckout(order);
+      expect(financingOptions).toStrictEqual([]);
+    });
+
+    it('should not include credipay when our seller is missing from buyer profile', async () => {
+      order.amountCents = 100;
+
+      credixMock.getBuyer = jest.fn().mockResolvedValue({
+        availableCreditLimitAmountCents: 200,
+        sellerConfigs: [{ taxId: 'not our tax id' }],
+      });
+
+      let financingOptions = await service.preCheckout(order);
+      expect(financingOptions).toStrictEqual([]);
+    });
+
+    it('should include credipay when buyer has credit', async () => {
+      order.amountCents = 100;
+      credixMock.getBuyer = jest.fn().mockResolvedValue({
+        availableCreditLimitAmountCents: 200,
+        sellerConfigs: [
+          { taxId: order.sellerTaxId, baseTransactionFeePercentage: 0.02 },
+        ],
+      });
+
+      let financingOptions = await service.preCheckout(order);
+
+      expect(financingOptions).toStrictEqual<FinancingOption[]>([
+        {
+          name: 'credix credipay',
+          baseFee: 0.02,
+        },
+      ]);
+    });
   });
 
-  it('should not include credipay when api call fails', async () => {
-    mockCredixClient.getBuyer = jest.fn(() => {
-      new Error('credix api call failed');
+  describe('checkout', () => {
+    it('should decrease inventory count', async () => {
+      await service.checkout(order);
+
+      expect(dataSourceMock.transaction).toHaveBeenCalled();
+      expect(rolledBack).toBe(false);
+
+      expect(credixMock.createOrder).toHaveBeenCalled();
+      expect(queryMock.execute).toHaveBeenCalledTimes(order.items.length);
     });
 
-    let financingOptions = await service.preCheckout(order);
+    it('should fail when inventory is not updated', async () => {
+      queryMock.execute = jest.fn().mockResolvedValue({ affected: 0 });
+      expect.assertions(4);
 
-    expect(financingOptions).toStrictEqual([]);
-  });
+      try {
+        await service.checkout(order);
+      } catch (e) {
+        expect((e as Error).message).toMatch('not enough items in inventory');
+      }
 
-  it('should not include credipay when our seller is missing from buyer profile', async () => {
-    mockCredixClient.getBuyer = jest.fn().mockResolvedValue({
-      sellerConfigs: [{ taxId: 'not our tax id' }],
+      expect(dataSourceMock.transaction).toHaveBeenCalled();
+      expect(rolledBack).toBe(true);
+      expect(credixMock.createOrder).toHaveBeenCalledTimes(0);
     });
 
-    let financingOptions = await service.preCheckout(order);
+    it('should fail when order amount is zero', async () => {
+      order.items[0].amount = 0;
+      expect.assertions(5);
 
-    expect(financingOptions).toStrictEqual([]);
-  });
+      try {
+        await service.checkout(order);
+      } catch (error) {
+        expect((error as Error).message).toMatch('invalid order amount');
+      }
 
-  it('should include credipay when buyer has credit', async () => {
-    order.amountCents = 100;
+      expect(dataSourceMock.transaction).toHaveBeenCalled();
+      expect(rolledBack).toBe(true);
 
-    mockCredixClient.getBuyer = jest.fn().mockResolvedValue({
-      availableCreditLimitAmountCents: 200,
-      sellerConfigs: [
-        { taxId: order.sellerTaxId, baseTransactionFeePercentage: 0.02 },
-      ],
+      expect(credixMock.createOrder).toHaveBeenCalledTimes(0);
+      expect(queryMock.execute).toHaveBeenCalledTimes(0);
     });
 
-    let financingOptions = await service.preCheckout(order);
+    it('should fail when order amount is negative', async () => {
+      order.items[0].amount = -1;
+      expect.assertions(5);
 
-    expect(financingOptions).toStrictEqual<FinancingOption[]>([
-      {
-        name: 'credix credipay',
-        baseFee: 0.02,
-      },
-    ]);
+      try {
+        await service.checkout(order);
+      } catch (error) {
+        expect((error as Error).message).toMatch('invalid order amount');
+      }
+
+      expect(dataSourceMock.transaction).toHaveBeenCalled();
+      expect(rolledBack).toBe(true);
+
+      expect(credixMock.createOrder).toHaveBeenCalledTimes(0);
+      expect(queryMock.execute).toHaveBeenCalledTimes(0);
+    });
+
+    it('should fail when credix api call fails', async () => {
+      const mockError = new Error('credix api error');
+      credixMock.createOrder = jest.fn().mockRejectedValue(mockError);
+
+      expect.assertions(4);
+
+      try {
+        await service.checkout(order);
+      } catch (e) {
+        expect(e).toBe(mockError);
+      }
+
+      expect(dataSourceMock.transaction).toHaveBeenCalled();
+      expect(rolledBack).toBe(true);
+      expect(queryMock.execute).toHaveBeenCalledTimes(order.items.length);
+    });
+
+    it('should fail when repository call fails', async () => {
+      const mockError = new Error('database error');
+      queryMock.execute = jest.fn().mockRejectedValue(mockError);
+
+      expect.assertions(4);
+
+      try {
+        await service.checkout(order);
+      } catch (e) {
+        expect(e).toBe(mockError);
+      }
+
+      expect(dataSourceMock.transaction).toHaveBeenCalled();
+      expect(rolledBack).toBe(true);
+      expect(credixMock.createOrder).toHaveBeenCalledTimes(0);
+    });
   });
 });

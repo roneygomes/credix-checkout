@@ -23,4 +23,9 @@ export class CredixClient {
   async getBuyer(taxId: string): Promise<GetBuyerResponse> {
     return (await this.http.get<GetBuyerResponse>(`/buyers/${taxId}`)).data;
   }
+
+  // TODO: map request and response
+  async createOrder(request: any): Promise<void> {
+    return await this.http.post('orders', request);
+  }
 }
