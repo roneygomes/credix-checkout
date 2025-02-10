@@ -3,7 +3,8 @@ import { FinancingOption } from './interfaces/financing.interface';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService, OUR_SELLER_ID } from './orders.service';
 import { DataSource } from 'typeorm';
-import { Order } from 'src/credix/interfaces/order.interface';
+import { Order } from '../credix/interfaces/order.interface';
+import { InventoryService } from '../inventory/inventory.service';
 
 describe('orders service', () => {
   let service: OrdersService;
@@ -99,6 +100,7 @@ describe('orders service', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
+        InventoryService,
         {
           provide: CredixClient,
           useValue: credixMock,

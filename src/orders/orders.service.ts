@@ -3,9 +3,9 @@ import { Order } from '../credix/interfaces/order.interface';
 import { CreateOrderResponse } from '../credix/dto/order.dto';
 import { CredixClient } from '../credix/credix.client';
 import { FinancingOption } from './interfaces/financing.interface';
-import { DataSource, EntityManager } from 'typeorm';
-import { InventoryItem } from '../inventory/inventory.entity';
+import { DataSource } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import { InventoryService } from '../inventory/inventory.service';
 
 export const OUR_SELLER_ID = '37154724000108';
 
@@ -13,6 +13,7 @@ export const OUR_SELLER_ID = '37154724000108';
 export class OrdersService {
   constructor(
     private credixClient: CredixClient,
+    private inventoryService: InventoryService,
     private dataSource: DataSource,
   ) {}
 
@@ -47,38 +48,12 @@ export class OrdersService {
 
   async checkout(order: Order): Promise<CreateOrderResponse> {
     return await this.dataSource.transaction(async (entityManager) => {
-      await this.updateInventory(order, entityManager);
+      await this.inventoryService.updateInventory(order, entityManager);
 
       order.sellerTaxId = OUR_SELLER_ID;
       order.externalId = uuidv4();
 
       return await this.credixClient.createOrder(order);
     });
-  }
-
-  // TODO: move this to inventory module
-  private async updateInventory(
-    order: Order,
-    manager: EntityManager,
-  ): Promise<void> {
-    for (const { productId, quantity } of order.items) {
-      if (quantity <= 0) {
-        throw new Error('invalid order amount');
-      }
-
-      const result = await manager
-        .createQueryBuilder()
-        .update(InventoryItem)
-        .set({ amount: () => `amount - ${quantity}` })
-        .where('id = :productId AND amount >= :quantity', {
-          productId,
-          quantity,
-        })
-        .execute();
-
-      if (result.affected === 0) {
-        throw new Error('not enough items in inventory');
-      }
-    }
   }
 }
