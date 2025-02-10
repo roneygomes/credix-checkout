@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { OrdersService } from './OrdersService';
 import { CredixModule } from 'src/credix/credix.module';
 import { CredixClient } from 'src/credix/credix.client';
 import { OrdersController } from './orders.controller';
 import { ConfigModule } from '@nestjs/config';
+import { OrdersService } from './orders.service';
 
 @Module({
   imports: [CredixModule, ConfigModule],
