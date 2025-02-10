@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { OrdersService } from './orders.service';
+import { OrdersService } from './OrdersService';
 import { CredixModule } from 'src/credix/credix.module';
 import { CredixClient } from 'src/credix/credix.client';
 import { OrdersController } from './orders.controller';

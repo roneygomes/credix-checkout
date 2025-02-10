@@ -1,21 +1,20 @@
-import { Controller, Post } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
-import { GetBuyerResponse } from '../credix/interfaces/responses.interface';
+import { Controller, Get, Query, ValidationPipe } from '@nestjs/common';
 import { OrdersService } from './orders.service';
+import { FinancingOption } from './interfaces/financing.interface';
+import { GetFinancingOptionsDto } from './dto/get-financing-options.dto';
 
 @Controller('orders')
 export class OrdersController {
-  constructor(
-    private readonly ordersService: OrdersService,
-    private readonly credixClient: CredixClient,
-  ) {}
+  constructor(private readonly ordersService: OrdersService) {}
 
-  @Post('pre-checkout')
-  async preCheckout(): Promise<GetBuyerResponse> {
-    return await this.ordersService.checkout({
-      id: uuidv4(),
-      taxId: '26900161000125',
-      amountCents: 100,
-    });
+  @Get('financing')
+  async preCheckout(
+    @Query(new ValidationPipe({ transform: true }))
+    query: GetFinancingOptionsDto,
+  ): Promise<FinancingOption[]> {
+    return await this.ordersService.getFinancingOptions(
+      query.buyerId,
+      query.amount,
+    );
   }
 }

@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { CredixClient } from '../credix/credix.client';
 import { FinancingOption } from './interfaces/financing.interface';
 import { Test, TestingModule } from '@nestjs/testing';
-import { OrdersService } from './orders.service';
+import { OrdersService, OUR_SELLER_ID } from './orders.service';
 import { DataSource } from 'typeorm';
 
 describe('orders service', () => {
@@ -29,7 +29,7 @@ describe('orders service', () => {
         { id: 2, amount: 10 },
       ],
       buyerTaxId: 'buyer cnpj',
-      sellerTaxId: 'seller cnpj',
+      sellerTaxId: OUR_SELLER_ID,
       amountCents: 100,
     };
 
@@ -89,7 +89,10 @@ describe('orders service', () => {
         availableCreditLimitAmountCents: 50,
       });
 
-      let financingOptions = await service.preCheckout(order);
+      let financingOptions = await service.getFinancingOptions(
+        order.buyerTaxId,
+        order.amountCents,
+      );
       expect(financingOptions.length).toBe(0);
     });
 
@@ -98,7 +101,10 @@ describe('orders service', () => {
         throw new Error('bad gateway');
       });
 
-      let financingOptions = await service.preCheckout(order);
+      let financingOptions = await service.getFinancingOptions(
+        order.buyerTaxId,
+        order.amountCents,
+      );
       expect(financingOptions).toStrictEqual([]);
     });
 
@@ -110,7 +116,10 @@ describe('orders service', () => {
         sellerConfigs: [{ taxId: 'not our tax id' }],
       });
 
-      let financingOptions = await service.preCheckout(order);
+      let financingOptions = await service.getFinancingOptions(
+        order.buyerTaxId,
+        order.amountCents,
+      );
       expect(financingOptions).toStrictEqual([]);
     });
 
@@ -123,7 +132,10 @@ describe('orders service', () => {
         ],
       });
 
-      let financingOptions = await service.preCheckout(order);
+      let financingOptions = await service.getFinancingOptions(
+        order.buyerTaxId,
+        order.amountCents,
+      );
 
       expect(financingOptions).toStrictEqual<FinancingOption[]>([
         {

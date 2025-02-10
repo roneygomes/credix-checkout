@@ -5,6 +5,8 @@ import { FinancingOption } from './interfaces/financing.interface';
 import { DataSource, EntityManager } from 'typeorm';
 import { InventoryItem } from '../inventory/inventory.entity';
 
+export const OUR_SELLER_ID = '37154724000108';
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -12,15 +14,18 @@ export class OrdersService {
     private dataSource: DataSource,
   ) {}
 
-  async preCheckout(order: Order): Promise<FinancingOption[]> {
+  async getFinancingOptions(
+    buyerTaxId: string,
+    amountCents: number,
+  ): Promise<FinancingOption[]> {
     let financingOptions: FinancingOption[] = [];
 
     try {
-      let buyer = await this.credixClient.getBuyer(order.buyerTaxId);
+      let buyer = await this.credixClient.getBuyer(buyerTaxId);
 
-      if (order.amountCents < buyer.availableCreditLimitAmountCents) {
+      if (amountCents < buyer.availableCreditLimitAmountCents) {
         let sellerConfig = buyer.sellerConfigs.find(
-          (config) => config.taxId == order.sellerTaxId,
+          (config) => config.taxId == OUR_SELLER_ID,
         );
 
         if (sellerConfig) {
