@@ -18,6 +18,5 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "emitDecoratorMetadata": true,
-    "experimentaldecorators": true
   }
 }

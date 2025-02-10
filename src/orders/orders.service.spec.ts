@@ -1,10 +1,9 @@
-import { Order } from './interfaces/order.interface';
-import { v4 as uuidv4 } from 'uuid';
 import { CredixClient } from '../credix/credix.client';
 import { FinancingOption } from './interfaces/financing.interface';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService, OUR_SELLER_ID } from './orders.service';
 import { DataSource } from 'typeorm';
+import { Order } from 'src/credix/interfaces/order.interface';
 
 describe('orders service', () => {
   let service: OrdersService;
@@ -23,31 +22,46 @@ describe('orders service', () => {
   beforeEach(async () => {
     rolledBack = false;
     order = {
-      id: uuidv4(),
-      buyerTaxId: 'buyer cnpj',
+      buyerTaxId: '26900161000125',
+      sellerTaxId: OUR_SELLER_ID,
+      subtotalAmountCents: 100,
+      taxAmountCents: 2,
+      shippingCostCents: 10,
+      shippingLocation: {
+        address1: 'Rua da Consolação, 930',
+        address2: 'Apto 101',
+        city: 'São Paulo',
+        region: 'São Paulo',
+        postalCode: '01302000',
+        country: 'Brazil',
+      },
+      estimatedDeliveryDateUTC: '2024-02-05T00:00:00Z',
+      contactInformation: {
+        email: 'sales@acme.com',
+        phone: '+551243974164',
+        name: 'First name',
+        lastName: 'Last name',
+      },
       items: [
-        { id: 1, amount: 10 },
-        { id: 2, amount: 10 },
+        {
+          productId: '1',
+          quantity: 2,
+          productName: 'product',
+          unitPriceCents: 10,
+        },
+        {
+          productId: '2',
+          quantity: 2,
+          productName: 'product',
+          unitPriceCents: 10,
+        },
       ],
-      cost: {
-        taxCostCents: 10,
-        shippingCostCents: 10,
-        orderCostCents: 10,
-      },
-      shipping: {
-        address1: '',
-        city: '',
-        region: '',
-        postalCode: '',
-        country: '',
-      },
-      deliveryDate: new Date(),
-      contact: {
-        email: '',
-        phone: '',
-        name: '',
-        lastName: '',
-      },
+      installments: [
+        {
+          maturityDate: '2024-02-10T00:00:00Z',
+          faceValueCents: 100,
+        },
+      ],
     };
 
     credixMock = {
@@ -101,14 +115,14 @@ describe('orders service', () => {
 
   describe('pre-checkout', () => {
     it('shout not include credipay when credit is insufficient', async () => {
-      order.cost.orderCostCents = 100;
+      order.subtotalAmountCents = 100;
       credixMock.getBuyer = jest.fn().mockResolvedValue({
         availableCreditLimitAmountCents: 50,
       });
 
       let financingOptions = await service.getFinancingOptions(
         order.buyerTaxId,
-        order.cost.orderCostCents,
+        order.subtotalAmountCents,
       );
       expect(financingOptions.length).toBe(0);
     });
@@ -120,13 +134,13 @@ describe('orders service', () => {
 
       let financingOptions = await service.getFinancingOptions(
         order.buyerTaxId,
-        order.cost.orderCostCents,
+        order.subtotalAmountCents,
       );
       expect(financingOptions).toStrictEqual([]);
     });
 
     it('should not include credipay when our seller is missing from buyer profile', async () => {
-      order.cost.orderCostCents = 100;
+      order.subtotalAmountCents = 100;
 
       credixMock.getBuyer = jest.fn().mockResolvedValue({
         availableCreditLimitAmountCents: 200,
@@ -135,13 +149,13 @@ describe('orders service', () => {
 
       let financingOptions = await service.getFinancingOptions(
         order.buyerTaxId,
-        order.cost.orderCostCents,
+        order.subtotalAmountCents,
       );
       expect(financingOptions).toStrictEqual([]);
     });
 
     it('should include credipay when buyer has credit', async () => {
-      order.cost.orderCostCents = 100;
+      order.subtotalAmountCents = 100;
       credixMock.getBuyer = jest.fn().mockResolvedValue({
         availableCreditLimitAmountCents: 200,
         sellerConfigs: [
@@ -155,7 +169,7 @@ describe('orders service', () => {
 
       let financingOptions = await service.getFinancingOptions(
         order.buyerTaxId,
-        order.cost.orderCostCents,
+        order.subtotalAmountCents,
       );
 
       expect(financingOptions).toStrictEqual<FinancingOption[]>([
@@ -195,7 +209,7 @@ describe('orders service', () => {
     });
 
     it('should fail when order amount is zero', async () => {
-      order.items[0].amount = 0;
+      order.items[0].quantity = 0;
       expect.assertions(5);
 
       try {
@@ -212,7 +226,7 @@ describe('orders service', () => {
     });
 
     it('should fail when order amount is negative', async () => {
-      order.items[0].amount = -1;
+      order.items[0].quantity = -1;
       expect.assertions(5);
 
       try {
