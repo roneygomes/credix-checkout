@@ -5,6 +5,7 @@ import { OrdersModule } from './orders/orders.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { InventoryModule } from './inventory/inventory.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { InventoryItem } from './inventory/inventory.entity';
 
 @Module({
   imports: [
@@ -21,8 +22,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         username: configService.get('DB_USER'),
         password: configService.get('DB_PASS'),
         database: configService.get('DB_NAME'),
-        entities: [],
-        synchronize: true,
+        entities: [InventoryItem],
       }),
     }),
   ],

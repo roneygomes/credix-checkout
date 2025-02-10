@@ -1,8 +1,8 @@
 import { Transform, Type } from 'class-transformer';
 import {
-  IsDateString,
   IsEmail,
   IsInt,
+  IsISO8601,
   IsNotEmpty,
   IsNumberString,
   IsPhoneNumber,
@@ -13,6 +13,7 @@ import { FinancingOption } from '../interfaces/financing.interface';
 import {
   ContactInformation,
   Cost,
+  Installment,
   Order,
   OrderItem,
   ShippingLocation,
@@ -76,68 +77,77 @@ export class CheckoutRequestShippingLocation {
   country: string;
 }
 
+export class CheckoutRequestInstallment {
+  @IsNotEmpty()
+  maturityDate: string;
+
+  @Min(1)
+  faceValueCents: number;
+}
+
 export class CheckoutRequestBody {
   @IsNumberString()
   buyerTaxId: string;
 
-  @Type(() => Number)
-  @IsInt()
   @Min(1)
   taxAmountCents: number;
 
-  @Type(() => Number)
-  @IsInt()
   @Min(1)
   shippingCostCents: number;
-  shippingLocation: CheckoutRequestShippingLocation;
 
-  @Type(() => Number)
-  @IsInt()
   @Min(1)
   subtotalAmountCents: number;
 
-  @IsDateString()
-  @Transform(({ value }) => new Date(value))
-  estimatedDeliveryDateUTC: Date;
-
-  contactInformation: CheckoutRequestContactInformation;
   items: CheckoutRequestItem[];
+  installments: CheckoutRequestInstallment[];
 
-  toOrder(): Order {
-    const cost: Cost = {
-      shippingCostCents: this.shippingCostCents,
-      orderCostCents: this.subtotalAmountCents,
-      taxCostCents: this.taxAmountCents,
-    };
+  estimatedDeliveryDateUTC: string;
+  contactInformation: CheckoutRequestContactInformation;
+  shippingLocation: CheckoutRequestShippingLocation;
+}
 
-    const shipping: ShippingLocation = {
-      address1: this.shippingLocation.address1,
-      address2: this.shippingLocation.address2,
-      city: this.shippingLocation.city,
-      region: this.shippingLocation.region,
-      postalCode: this.shippingLocation.postalCode,
-      country: this.shippingLocation.country,
-    };
+export function toOrder(body: CheckoutRequestBody): Order {
+  const cost: Cost = {
+    shippingCostCents: body.shippingCostCents,
+    orderCostCents: body.subtotalAmountCents,
+    taxCostCents: body.taxAmountCents,
+  };
 
-    const contact: ContactInformation = {
-      email: this.contactInformation.email,
-      phone: this.contactInformation.phone,
-      name: this.contactInformation.name,
-      lastName: this.contactInformation.lastName,
-    };
+  const shipping: ShippingLocation = {
+    address1: body.shippingLocation.address1,
+    address2: body.shippingLocation.address2,
+    city: body.shippingLocation.city,
+    region: body.shippingLocation.region,
+    postalCode: body.shippingLocation.postalCode,
+    country: body.shippingLocation.country,
+  };
 
-    const items: OrderItem[] = this.items.map(({ id, amount }) => {
-      return { id, amount };
-    });
+  const contact: ContactInformation = {
+    email: body.contactInformation.email,
+    phone: body.contactInformation.phone,
+    name: body.contactInformation.name,
+    lastName: body.contactInformation.lastName,
+  };
 
+  const items: OrderItem[] = body.items.map(({ id, amount }) => {
+    return { id, amount };
+  });
+
+  const installments: Installment[] = body.installments.map((i) => {
     return {
-      id: uuidv4(),
-      buyerTaxId: this.buyerTaxId,
-      deliveryDate: this.estimatedDeliveryDateUTC,
-      items,
-      cost,
-      shipping,
-      contact,
+      maturityDate: new Date(i.maturityDate),
+      faceValueCents: i.faceValueCents,
     };
-  }
+  });
+
+  return {
+    id: uuidv4(),
+    buyerTaxId: body.buyerTaxId,
+    deliveryDate: new Date(body.estimatedDeliveryDateUTC),
+    items,
+    installments,
+    cost,
+    shipping,
+    contact,
+  };
 }

@@ -17,6 +17,7 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "experimentaldecorators": true
   }
 }

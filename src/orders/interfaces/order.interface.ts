@@ -27,7 +27,7 @@ export type OrderStatus =
   | 'invalidated';
 
 export interface Installment {
-  maturityDate: string;
+  maturityDate: Date;
   faceValueCents: number;
 }
 
@@ -45,9 +45,10 @@ export interface Cost {
 export interface Order {
   id: string;
   buyerTaxId: string;
-  items: OrderItem[];
   cost: Cost;
   shipping: ShippingLocation;
   deliveryDate: Date;
   contact: ContactInformation;
+  items: OrderItem[];
+  installments: Installment[];
 }

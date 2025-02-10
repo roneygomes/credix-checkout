@@ -54,12 +54,28 @@ export class OrdersService {
 
       const request: CreateOrderRequest = {
         externalId: uuidv4(),
+        sellerTaxId: OUR_SELLER_ID,
+        buyerTaxId: order.buyerTaxId,
         subtotalAmountCents: order.cost.orderCostCents,
         taxAmountCents: order.cost.taxCostCents,
         shippingCostCents: order.cost.shippingCostCents,
         shippingLocation: order.shipping,
         estimatedDeliveryDateUTC: order.deliveryDate.toISOString(),
         contactInformation: order.contact,
+        items: order.items.map((i) => {
+          return {
+            productId: `${i.id}`,
+            productName: 'product name',
+            quantity: i.amount,
+            unitPriceCents: 0,
+          };
+        }),
+        installments: order.installments.map((i) => {
+          return {
+            maturityDate: i.maturityDate.toISOString(),
+            faceValueCents: i.faceValueCents,
+          };
+        }),
       };
 
       return await this.credixClient.createOrder(request);

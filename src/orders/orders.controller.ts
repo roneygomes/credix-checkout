@@ -10,6 +10,7 @@ import {
   CheckoutRequestBody,
   PreCheckoutQueryParams,
   PreCheckoutResponse,
+  toOrder,
 } from './dto/orders.dto';
 import {
   ContactInformation,
@@ -38,12 +39,13 @@ export class OrdersController {
     return { financingOptions };
   }
 
-  @Post()
+  @Post('checkout')
   async checkout(
     @Body(new ValidationPipe())
     body: CheckoutRequestBody,
-  ): Promise<CreateOrderResponse> {
-    const order = body.toOrder();
-    return await this.ordersService.checkout(order);
+  ): Promise<void> {
+    const order = toOrder(body);
+    console.log(order);
+    await this.ordersService.checkout(order);
   }
 }
