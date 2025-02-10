@@ -7,20 +7,12 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import {
-  CheckoutRequestBody,
   PreCheckoutQueryParams,
   PreCheckoutResponse,
-  toOrder,
-} from './dto/orders.dto';
-import {
-  ContactInformation,
-  Cost,
-  Order,
-  OrderItem,
-  ShippingLocation,
-} from './interfaces/order.interface';
+} from './dto/pre-checkout.dto';
 import { OrdersService } from './orders.service';
-import { CreateOrderResponse } from 'src/credix/dto/credix.dto';
+import { Order } from '../credix/interfaces/order.interface';
+import { CreateOrderResponse } from '../credix/dto/order.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -42,10 +34,8 @@ export class OrdersController {
   @Post('checkout')
   async checkout(
     @Body(new ValidationPipe())
-    body: CheckoutRequestBody,
-  ): Promise<void> {
-    const order = toOrder(body);
-    console.log(order);
-    await this.ordersService.checkout(order);
+    order: Order,
+  ): Promise<CreateOrderResponse> {
+    return await this.ordersService.checkout(order);
   }
 }

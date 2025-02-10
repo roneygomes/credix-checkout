@@ -1,13 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Order } from './interfaces/order.interface';
+import { Order } from '../credix/interfaces/order.interface';
+import { CreateOrderResponse } from '../credix/dto/order.dto';
 import { CredixClient } from '../credix/credix.client';
 import { FinancingOption } from './interfaces/financing.interface';
 import { DataSource, EntityManager } from 'typeorm';
 import { InventoryItem } from '../inventory/inventory.entity';
-import {
-  CreateOrderRequest,
-  CreateOrderResponse,
-} from 'src/credix/dto/credix.dto';
 import { v4 as uuidv4 } from 'uuid';
 
 export const OUR_SELLER_ID = '37154724000108';
@@ -52,33 +49,10 @@ export class OrdersService {
     return await this.dataSource.transaction(async (entityManager) => {
       await this.updateInventory(order, entityManager);
 
-      const request: CreateOrderRequest = {
-        externalId: uuidv4(),
-        sellerTaxId: OUR_SELLER_ID,
-        buyerTaxId: order.buyerTaxId,
-        subtotalAmountCents: order.cost.orderCostCents,
-        taxAmountCents: order.cost.taxCostCents,
-        shippingCostCents: order.cost.shippingCostCents,
-        shippingLocation: order.shipping,
-        estimatedDeliveryDateUTC: order.deliveryDate.toISOString(),
-        contactInformation: order.contact,
-        items: order.items.map((i) => {
-          return {
-            productId: `${i.id}`,
-            productName: 'product name',
-            quantity: i.amount,
-            unitPriceCents: 0,
-          };
-        }),
-        installments: order.installments.map((i) => {
-          return {
-            maturityDate: i.maturityDate.toISOString(),
-            faceValueCents: i.faceValueCents,
-          };
-        }),
-      };
+      order.sellerTaxId = OUR_SELLER_ID;
+      order.externalId = uuidv4();
 
-      return await this.credixClient.createOrder(request);
+      return await this.credixClient.createOrder(order);
     });
   }
 
@@ -87,16 +61,19 @@ export class OrdersService {
     order: Order,
     manager: EntityManager,
   ): Promise<void> {
-    for (const { id, amount } of order.items) {
-      if (amount <= 0) {
+    for (const { productId, quantity } of order.items) {
+      if (quantity <= 0) {
         throw new Error('invalid order amount');
       }
 
       const result = await manager
         .createQueryBuilder()
         .update(InventoryItem)
-        .set({ amount: () => `amount - ${amount}` })
-        .where('id = :id AND amount >= :amount', { id, amount })
+        .set({ amount: () => `amount - ${quantity}` })
+        .where('id = :productId AND amount >= :quantity', {
+          productId,
+          quantity,
+        })
         .execute();
 
       if (result.affected === 0) {
