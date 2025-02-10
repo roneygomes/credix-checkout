@@ -4,6 +4,11 @@ import { CredixClient } from '../credix/credix.client';
 import { FinancingOption } from './interfaces/financing.interface';
 import { DataSource, EntityManager } from 'typeorm';
 import { InventoryItem } from '../inventory/inventory.entity';
+import {
+  CreateOrderRequest,
+  CreateOrderResponse,
+} from 'src/credix/dto/credix.dto';
+import { v4 as uuidv4 } from 'uuid';
 
 export const OUR_SELLER_ID = '37154724000108';
 
@@ -30,8 +35,9 @@ export class OrdersService {
 
         if (sellerConfig) {
           financingOptions.push({
-            name: 'credix credipay',
+            name: 'CREDIX_CREDIPAY',
             baseFee: sellerConfig.baseTransactionFeePercentage,
+            maxPaymentTermDays: sellerConfig.maxPaymentTermDays,
           });
         }
       }
@@ -42,14 +48,26 @@ export class OrdersService {
     return financingOptions;
   }
 
-  async checkout(order: Order): Promise<void> {
-    await this.dataSource.transaction(async (entityManager) => {
-      await this.updateIventory(order, entityManager);
-      await this.credixClient.createOrder({});
+  async checkout(order: Order): Promise<CreateOrderResponse> {
+    return await this.dataSource.transaction(async (entityManager) => {
+      await this.updateInventory(order, entityManager);
+
+      const request: CreateOrderRequest = {
+        externalId: uuidv4(),
+        subtotalAmountCents: order.cost.orderCostCents,
+        taxAmountCents: order.cost.taxCostCents,
+        shippingCostCents: order.cost.shippingCostCents,
+        shippingLocation: order.shipping,
+        estimatedDeliveryDateUTC: order.deliveryDate.toISOString(),
+        contactInformation: order.contact,
+      };
+
+      return await this.credixClient.createOrder(request);
     });
   }
 
-  private async updateIventory(
+  // TODO: move this to inventory module
+  private async updateInventory(
     order: Order,
     manager: EntityManager,
   ): Promise<void> {

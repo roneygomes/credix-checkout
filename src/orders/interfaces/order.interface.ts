@@ -1,10 +1,53 @@
+export interface ShippingLocation {
+  address1: string;
+  address2?: string;
+  city: string;
+  region: string;
+  postalCode: string;
+  country: string;
+}
+
+export interface ContactInformation {
+  email: string;
+  phone: string;
+  name: string;
+  lastName: string;
+}
+
+export type OrderStatus =
+  | 'new'
+  | 'created'
+  | 'accepted'
+  | 'cancelled'
+  | 'rejected'
+  | 'finalized'
+  | 'captured'
+  | 'expired'
+  | 'ineligible'
+  | 'invalidated';
+
+export interface Installment {
+  maturityDate: string;
+  faceValueCents: number;
+}
+
+export interface OrderItem {
+  id: number;
+  amount: number;
+}
+
+export interface Cost {
+  shippingCostCents: number;
+  orderCostCents: number;
+  taxCostCents: number;
+}
+
 export interface Order {
   id: string;
-  items: {
-    id: number;
-    amount: number;
-  }[];
   buyerTaxId: string;
-  sellerTaxId?: string;
-  amountCents: number;
+  items: OrderItem[];
+  cost: Cost;
+  shipping: ShippingLocation;
+  deliveryDate: Date;
+  contact: ContactInformation;
 }

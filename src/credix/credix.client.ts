@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { GetBuyerResponse } from './interfaces/responses.interface';
+import {
+  CreateOrderRequest,
+  CreateOrderResponse,
+  GetBuyerResponse,
+} from './dto/credix.dto';
 import axios, { AxiosInstance } from 'axios';
 import { ConfigService } from '@nestjs/config';
 
@@ -24,8 +28,7 @@ export class CredixClient {
     return (await this.http.get<GetBuyerResponse>(`/buyers/${taxId}`)).data;
   }
 
-  // TODO: map request and response
-  async createOrder(request: any): Promise<void> {
-    return await this.http.post('orders', request);
+  async createOrder(request: CreateOrderRequest): Promise<CreateOrderResponse> {
+    return (await this.http.post<CreateOrderResponse>('/orders', request)).data;
   }
 }

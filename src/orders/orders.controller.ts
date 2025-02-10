@@ -1,20 +1,49 @@
-import { Controller, Get, Query, ValidationPipe } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  ValidationPipe,
+} from '@nestjs/common';
+import {
+  CheckoutRequestBody,
+  PreCheckoutQueryParams,
+  PreCheckoutResponse,
+} from './dto/orders.dto';
+import {
+  ContactInformation,
+  Cost,
+  Order,
+  OrderItem,
+  ShippingLocation,
+} from './interfaces/order.interface';
 import { OrdersService } from './orders.service';
-import { FinancingOption } from './interfaces/financing.interface';
-import { GetFinancingOptionsDto } from './dto/get-financing-options.dto';
+import { CreateOrderResponse } from 'src/credix/dto/credix.dto';
 
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  @Get('financing')
+  @Get('pre-checkout')
   async preCheckout(
     @Query(new ValidationPipe({ transform: true }))
-    query: GetFinancingOptionsDto,
-  ): Promise<FinancingOption[]> {
-    return await this.ordersService.getFinancingOptions(
+    query: PreCheckoutQueryParams,
+  ): Promise<PreCheckoutResponse> {
+    const financingOptions = await this.ordersService.getFinancingOptions(
       query.buyerId,
       query.amount,
     );
+
+    return { financingOptions };
+  }
+
+  @Post()
+  async checkout(
+    @Body(new ValidationPipe())
+    body: CheckoutRequestBody,
+  ): Promise<CreateOrderResponse> {
+    const order = body.toOrder();
+    return await this.ordersService.checkout(order);
   }
 }
