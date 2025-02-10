@@ -24,13 +24,30 @@ describe('orders service', () => {
     rolledBack = false;
     order = {
       id: uuidv4(),
+      buyerTaxId: 'buyer cnpj',
       items: [
         { id: 1, amount: 10 },
         { id: 2, amount: 10 },
       ],
-      buyerTaxId: 'buyer cnpj',
-      sellerTaxId: OUR_SELLER_ID,
-      amountCents: 100,
+      cost: {
+        taxCostCents: 10,
+        shippingCostCents: 10,
+        orderCostCents: 10,
+      },
+      shipping: {
+        address1: '',
+        city: '',
+        region: '',
+        postalCode: '',
+        country: '',
+      },
+      deliveryDate: new Date(),
+      contact: {
+        email: '',
+        phone: '',
+        name: '',
+        lastName: '',
+      },
     };
 
     credixMock = {
@@ -84,14 +101,14 @@ describe('orders service', () => {
 
   describe('pre-checkout', () => {
     it('shout not include credipay when credit is insufficient', async () => {
-      order.amountCents = 100;
+      order.cost.orderCostCents = 100;
       credixMock.getBuyer = jest.fn().mockResolvedValue({
         availableCreditLimitAmountCents: 50,
       });
 
       let financingOptions = await service.getFinancingOptions(
         order.buyerTaxId,
-        order.amountCents,
+        order.cost.orderCostCents,
       );
       expect(financingOptions.length).toBe(0);
     });
@@ -103,13 +120,13 @@ describe('orders service', () => {
 
       let financingOptions = await service.getFinancingOptions(
         order.buyerTaxId,
-        order.amountCents,
+        order.cost.orderCostCents,
       );
       expect(financingOptions).toStrictEqual([]);
     });
 
     it('should not include credipay when our seller is missing from buyer profile', async () => {
-      order.amountCents = 100;
+      order.cost.orderCostCents = 100;
 
       credixMock.getBuyer = jest.fn().mockResolvedValue({
         availableCreditLimitAmountCents: 200,
@@ -118,29 +135,34 @@ describe('orders service', () => {
 
       let financingOptions = await service.getFinancingOptions(
         order.buyerTaxId,
-        order.amountCents,
+        order.cost.orderCostCents,
       );
       expect(financingOptions).toStrictEqual([]);
     });
 
     it('should include credipay when buyer has credit', async () => {
-      order.amountCents = 100;
+      order.cost.orderCostCents = 100;
       credixMock.getBuyer = jest.fn().mockResolvedValue({
         availableCreditLimitAmountCents: 200,
         sellerConfigs: [
-          { taxId: order.sellerTaxId, baseTransactionFeePercentage: 0.02 },
+          {
+            taxId: OUR_SELLER_ID,
+            baseTransactionFeePercentage: 0.02,
+            maxPaymentTermDays: 30,
+          },
         ],
       });
 
       let financingOptions = await service.getFinancingOptions(
         order.buyerTaxId,
-        order.amountCents,
+        order.cost.orderCostCents,
       );
 
       expect(financingOptions).toStrictEqual<FinancingOption[]>([
         {
-          name: 'credix credipay',
+          name: 'CREDIX_CREDIPAY',
           baseFee: 0.02,
+          maxPaymentTermDays: 30,
         },
       ]);
     });
