@@ -20,44 +20,54 @@ export class OrdersService {
     private dataSource: DataSource,
   ) {}
 
-  async simulateOrder(simulation: OrderSimulation): Promise<FinancingOption[]> {
-    let financingOptions: FinancingOption[] = [];
-
+  private async credixSimulation(
+    simulation: OrderSimulation,
+  ): Promise<FinancingOption> {
     try {
-      let buyer = await this.credixClient.getBuyer(simulation.buyerTaxId);
+      const buyer = await this.credixClient.getBuyer(simulation.buyerTaxId);
 
       if (
         simulation.totalOrderAmountCents > buyer.availableCreditLimitAmountCents
       ) {
-        financingOptions.push({
+        return {
           name: 'CREDIX_CREDIPAY',
           simulation: 'NOT_ENOUGH_CREDIT',
-        });
+        };
       }
 
-      if (
-        simulation.totalOrderAmountCents < buyer.availableCreditLimitAmountCents
-      ) {
-        let sellerConfig = buyer.sellerConfigs.find(
-          (config) => config.taxId == OUR_SELLER_ID,
-        );
+      let sellerConfig = buyer.sellerConfigs.find(
+        (config) => config.taxId == OUR_SELLER_ID,
+      );
 
-        if (sellerConfig) {
-          const response = await this.credixClient.simulateOrder(simulation);
+      if (sellerConfig) {
+        const response = await this.credixClient.simulateOrder(simulation);
 
-          financingOptions.push({
-            name: 'CREDIX_CREDIPAY',
-            simulation: response,
-          });
-        }
+        return {
+          name: 'CREDIX_CREDIPAY',
+          simulation: response,
+        };
       }
+
+      return {
+        name: 'CREDIX_CREDIPAY',
+        simulation: 'CREDIPAY_NOT_AVAILABLE_FOR_BUYER',
+      };
     } catch (e) {
-      financingOptions.push({
+      return {
         name: 'CREDIX_CREDIPAY',
         error: `credipay request failed: ${(e as Error).message}`,
-      });
+      };
     }
+  }
 
+  async simulateOrder(simulation: OrderSimulation): Promise<FinancingOption[]> {
+    const financingOptions: FinancingOption[] = [];
+
+    // The idea is to allow for multiple credit providers beyond Credix.
+    const crediPay = await this.credixSimulation(simulation);
+    financingOptions.push(crediPay);
+
+    // We return all financing options and let the user decide which to use for checkout.
     return financingOptions;
   }
 
