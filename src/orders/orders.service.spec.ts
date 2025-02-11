@@ -206,14 +206,16 @@ describe('orders service', () => {
 
     it('should not include credipay when our seller is missing from buyer profile', async () => {
       orderSimulation.totalOrderAmountCents = 100;
-
-      credixMock.getBuyer = jest.fn().mockResolvedValue({
-        availableCreditLimitAmountCents: 200,
-        sellerConfigs: [{ taxId: 'not our tax id' }],
-      });
+      buyer.sellerConfigs[0].taxId = 'not our tax id';
 
       let financingOptions = await service.simulateOrder(orderSimulation);
-      expect(financingOptions).toStrictEqual([]);
+
+      expect(financingOptions).toStrictEqual([
+        {
+          name: 'CREDIX_CREDIPAY',
+          simulation: 'CREDIPAY_NOT_AVAILABLE_FOR_BUYER',
+        },
+      ]);
     });
 
     it('should include credipay when buyer has credit', async () => {
