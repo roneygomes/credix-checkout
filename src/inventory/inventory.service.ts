@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Order } from '../credix/interfaces/order.interface';
 import { EntityManager } from 'typeorm';
 import { InventoryItem } from './inventory.entity';
+import { Order } from '../orders/interfaces/order.interface';
 
 @Injectable()
 export class InventoryService {

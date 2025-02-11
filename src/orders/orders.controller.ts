@@ -1,18 +1,11 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Query,
-  ValidationPipe,
-} from '@nestjs/common';
-import {
-  PreCheckoutQueryParams,
-  PreCheckoutResponse,
-} from './dto/pre-checkout.dto';
+import { Body, Controller, Get, Post, ValidationPipe } from '@nestjs/common';
+import { PreCheckoutResponse } from './dto/pre-checkout.dto';
 import { OrdersService } from './orders.service';
-import { Order } from '../credix/interfaces/order.interface';
-import { CreateOrderResponse } from '../credix/dto/order.dto';
+import {
+  CreateOrderResponse,
+  Order,
+  OrderSimulation,
+} from './interfaces/order.interface';
 
 @Controller('orders')
 export class OrdersController {
@@ -20,13 +13,9 @@ export class OrdersController {
 
   @Get('pre-checkout')
   async preCheckout(
-    @Query(new ValidationPipe({ transform: true }))
-    query: PreCheckoutQueryParams,
+    @Body(new ValidationPipe()) simulation: OrderSimulation,
   ): Promise<PreCheckoutResponse> {
-    const financingOptions = await this.ordersService.getFinancingOptions(
-      query.buyerId,
-      query.amount,
-    );
+    const financingOptions = await this.ordersService.simulateOrder(simulation);
 
     return { financingOptions };
   }

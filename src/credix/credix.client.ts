@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
 import { ConfigService } from '@nestjs/config';
-import { Order } from './interfaces/order.interface';
-import { Buyer } from './interfaces/buyer.interface';
-import { CreateOrderResponse } from './dto/order.dto';
+import {
+  Order,
+  CreateOrderResponse,
+  OrderSimulation,
+  OrderSimulationResponse,
+} from '../orders/interfaces/order.interface';
+import { Buyer } from '../orders/interfaces/buyer.interface';
 
 @Injectable()
 export class CredixClient {
@@ -24,6 +28,17 @@ export class CredixClient {
 
   async getBuyer(taxId: string): Promise<Buyer> {
     return (await this.http.get<Buyer>(`/buyers/${taxId}`)).data;
+  }
+
+  async simulateOrder(
+    request: OrderSimulation,
+  ): Promise<OrderSimulationResponse> {
+    return (
+      await this.http.post<OrderSimulationResponse>(
+        `/order-simulation`,
+        request,
+      )
+    ).data;
   }
 
   async createOrder(request: Order): Promise<CreateOrderResponse> {

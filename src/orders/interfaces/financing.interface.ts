@@ -1,7 +1,7 @@
-export type OptionName = 'CREDIX_CREDIPAY' | 'OTHER';
+import { OrderSimulationResponse } from './order.interface';
 
 export interface FinancingOption {
-  name: OptionName;
-  baseFee: number;
-  maxPaymentTermDays: number;
+  name: 'CREDIX_CREDIPAY' | 'FICTIONAL_BANK';
+  simulation?: 'NOT_ENOUGH_CREDIT' | OrderSimulationResponse;
+  error?: string;
 }

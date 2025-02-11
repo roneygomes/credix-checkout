@@ -16,16 +16,6 @@ export class GetFinancingOptionsResponse {
   financingOptions: FinancingOption[];
 }
 
-export class PreCheckoutQueryParams {
-  @IsString()
-  buyerId: string;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  amount: number;
-}
-
 export class PreCheckoutResponse {
   financingOptions: FinancingOption[];
 }

@@ -17,3 +17,14 @@ export interface Buyer {
   onboarded: boolean;
   eligible: boolean;
 }
+
+export interface GetBuyerResponse {
+  id: string;
+  taxId: string;
+  name: string;
+  sellerConfigs: SellerConfig[];
+  creditLimitAmountCents: number;
+  availableCreditLimitAmountCents: number;
+  onboarded: boolean;
+  eligible: boolean;
+}

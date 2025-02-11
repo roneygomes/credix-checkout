@@ -122,7 +122,7 @@ describe('orders service', () => {
         availableCreditLimitAmountCents: 50,
       });
 
-      let financingOptions = await service.getFinancingOptions(
+      let financingOptions = await service.simulateOrder(
         order.buyerTaxId,
         order.subtotalAmountCents,
       );
@@ -134,7 +134,7 @@ describe('orders service', () => {
         throw new Error('bad gateway');
       });
 
-      let financingOptions = await service.getFinancingOptions(
+      let financingOptions = await service.simulateOrder(
         order.buyerTaxId,
         order.subtotalAmountCents,
       );
@@ -149,7 +149,7 @@ describe('orders service', () => {
         sellerConfigs: [{ taxId: 'not our tax id' }],
       });
 
-      let financingOptions = await service.getFinancingOptions(
+      let financingOptions = await service.simulateOrder(
         order.buyerTaxId,
         order.subtotalAmountCents,
       );
@@ -169,7 +169,7 @@ describe('orders service', () => {
         ],
       });
 
-      let financingOptions = await service.getFinancingOptions(
+      let financingOptions = await service.simulateOrder(
         order.buyerTaxId,
         order.subtotalAmountCents,
       );
