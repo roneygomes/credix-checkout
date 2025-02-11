@@ -31,11 +31,11 @@ export class OrdersController {
     return { financingOptions };
   }
 
-  @Post('checkout')
-  async checkout(
+  @Post('checkout/credix')
+  async credixCheckout(
     @Body(new ValidationPipe())
     order: Order,
   ): Promise<CreateOrderResponse> {
-    return await this.ordersService.checkout(order);
+    return await this.ordersService.credixCheckout(order);
   }
 }

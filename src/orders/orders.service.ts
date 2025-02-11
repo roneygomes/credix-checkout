@@ -46,7 +46,7 @@ export class OrdersService {
     return financingOptions;
   }
 
-  async checkout(order: Order): Promise<CreateOrderResponse> {
+  async credixCheckout(order: Order): Promise<CreateOrderResponse> {
     return await this.dataSource.transaction(async (entityManager) => {
       await this.inventoryService.updateInventory(order, entityManager);
 

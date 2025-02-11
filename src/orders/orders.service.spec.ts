@@ -186,7 +186,7 @@ describe('orders service', () => {
 
   describe('checkout', () => {
     it('should decrease inventory count', async () => {
-      await service.checkout(order);
+      await service.credixCheckout(order);
 
       expect(dataSourceMock.transaction).toHaveBeenCalled();
       expect(rolledBack).toBe(false);
@@ -200,7 +200,7 @@ describe('orders service', () => {
       expect.assertions(4);
 
       try {
-        await service.checkout(order);
+        await service.credixCheckout(order);
       } catch (e) {
         expect((e as Error).message).toMatch('not enough items in inventory');
       }
@@ -215,7 +215,7 @@ describe('orders service', () => {
       expect.assertions(5);
 
       try {
-        await service.checkout(order);
+        await service.credixCheckout(order);
       } catch (error) {
         expect((error as Error).message).toMatch('invalid order amount');
       }
@@ -232,7 +232,7 @@ describe('orders service', () => {
       expect.assertions(5);
 
       try {
-        await service.checkout(order);
+        await service.credixCheckout(order);
       } catch (error) {
         expect((error as Error).message).toMatch('invalid order amount');
       }
@@ -251,7 +251,7 @@ describe('orders service', () => {
       expect.assertions(4);
 
       try {
-        await service.checkout(order);
+        await service.credixCheckout(order);
       } catch (e) {
         expect(e).toBe(mockError);
       }
@@ -268,7 +268,7 @@ describe('orders service', () => {
       expect.assertions(4);
 
       try {
-        await service.checkout(order);
+        await service.credixCheckout(order);
       } catch (e) {
         expect(e).toBe(mockError);
       }
