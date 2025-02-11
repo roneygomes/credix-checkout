@@ -91,7 +91,7 @@ export interface OrderSimulationResponse {
     };
     paymentTermDays: number;
   }[];
-  installments: Installment[];
+  installments: Installment[][];
 }
 
 export interface CreateOrderResponse {

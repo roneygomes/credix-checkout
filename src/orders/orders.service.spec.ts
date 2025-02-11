@@ -3,16 +3,27 @@ import { FinancingOption } from './interfaces/financing.interface';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService, OUR_SELLER_ID } from './orders.service';
 import { DataSource } from 'typeorm';
-import { Order } from '../credix/interfaces/order.interface';
+import {
+  Order,
+  OrderSimulation,
+  OrderSimulationResponse,
+} from '../orders/interfaces/order.interface';
 import { InventoryService } from '../inventory/inventory.service';
+import { Buyer } from './interfaces/buyer.interface';
 
 describe('orders service', () => {
   let service: OrdersService;
   let order: Order;
 
+  let orderSimulation: OrderSimulation;
+  let orderSimulationResponse: OrderSimulationResponse;
+
+  let buyer: Buyer;
+
   let credixMock: {
     getBuyer: jest.Mock;
     createOrder: jest.Mock;
+    simulateOrder: jest.Mock;
   };
 
   let queryMock: { execute: jest.Mock };
@@ -25,7 +36,7 @@ describe('orders service', () => {
     order = {
       buyerTaxId: '26900161000125',
       sellerTaxId: OUR_SELLER_ID,
-      subtotalAmountCents: 100,
+      subtotalAmountCents: 500000,
       taxAmountCents: 2,
       shippingCostCents: 10,
       shippingLocation: {
@@ -36,7 +47,7 @@ describe('orders service', () => {
         postalCode: '01302000',
         country: 'Brazil',
       },
-      estimatedDeliveryDateUTC: '2024-02-05T00:00:00Z',
+      estimatedDeliveryDateUTC: '2025-03-01T00:00:00Z',
       contactInformation: {
         email: 'sales@acme.com',
         phone: '+551243974164',
@@ -48,26 +59,78 @@ describe('orders service', () => {
           productId: '1',
           quantity: 2,
           productName: 'product',
-          unitPriceCents: 10,
+          unitPriceCents: 300000,
         },
         {
           productId: '2',
           quantity: 2,
           productName: 'product',
-          unitPriceCents: 10,
+          unitPriceCents: 200000,
         },
       ],
       installments: [
         {
-          maturityDate: '2024-02-10T00:00:00Z',
-          faceValueCents: 100,
+          maturityDate: '2025-03-30T00:00:00Z',
+          faceValueCents: 500000,
         },
       ],
     };
 
+    orderSimulation = {
+      sellerTaxId: OUR_SELLER_ID,
+      buyerTaxId: '26900161000125',
+      totalOrderAmountCents: 50000,
+      maxNumberOfInstallments: 6,
+      periodDuration: 30,
+      paymentTerms: [30, 60, 90, 120],
+    };
+
+    buyer = {
+      id: 'b7a686b0-6bbe-49bc-af2b-2c9d7ed35af1',
+      taxId: '26900161000125',
+      name: 'fictional buyer',
+      sellerConfigs: [
+        {
+          taxId: OUR_SELLER_ID,
+          maxPaymentTermDays: 70,
+          monthlyDiscountRate: 0.02,
+          transactionFeePercentage: 0.015,
+          baseTransactionFeePercentage: 0.015,
+        },
+      ],
+      creditLimitAmountCents: 100000000,
+      availableCreditLimitAmountCents: 48270236,
+      onboarded: false,
+      eligible: true,
+    };
+
+    orderSimulationResponse = {
+      maxPaymentTermDays: 70,
+      totalOrderAmountCents: 50000,
+      invoiceTotalsWithFees: [
+        {
+          totalInvoiceAmountCents: 50000,
+          fees: {
+            buyerFeesCents: 0,
+            buyerFeesPercentage: 0,
+          },
+          paymentTermDays: 30,
+        },
+      ],
+      installments: [
+        [
+          {
+            maturityDate: '2025-03-30T16:04:32.655Z',
+            faceValueCents: 50000,
+          },
+        ],
+      ],
+    };
+
     credixMock = {
-      getBuyer: jest.fn(),
-      createOrder: jest.fn(),
+      getBuyer: jest.fn().mockResolvedValue(buyer),
+      createOrder: jest.fn().mockResolvedValue(orderSimulationResponse),
+      simulateOrder: jest.fn().mockResolvedValue(orderSimulationResponse),
     };
 
     queryMock = {
@@ -116,17 +179,15 @@ describe('orders service', () => {
   });
 
   describe('pre-checkout', () => {
-    it('shout not include credipay when credit is insufficient', async () => {
-      order.subtotalAmountCents = 100;
-      credixMock.getBuyer = jest.fn().mockResolvedValue({
-        availableCreditLimitAmountCents: 50,
-      });
-
-      let financingOptions = await service.simulateOrder(
-        order.buyerTaxId,
-        order.subtotalAmountCents,
-      );
-      expect(financingOptions.length).toBe(0);
+    it('should display NOT_ENOUGH_CREDIT when buyer has not enough credit', async () => {
+      buyer.availableCreditLimitAmountCents = 0;
+      let financingOptions = await service.simulateOrder(orderSimulation);
+      expect(financingOptions).toStrictEqual([
+        {
+          name: 'CREDIX_CREDIPAY',
+          simulation: 'NOT_ENOUGH_CREDIT',
+        },
+      ]);
     });
 
     it('should not include credipay when api call fails', async () => {
@@ -134,51 +195,34 @@ describe('orders service', () => {
         throw new Error('bad gateway');
       });
 
-      let financingOptions = await service.simulateOrder(
-        order.buyerTaxId,
-        order.subtotalAmountCents,
-      );
-      expect(financingOptions).toStrictEqual([]);
+      let financingOptions = await service.simulateOrder(orderSimulation);
+      expect(financingOptions).toStrictEqual([
+        {
+          name: 'CREDIX_CREDIPAY',
+          error: 'credipay request failed: bad gateway',
+        },
+      ]);
     });
 
     it('should not include credipay when our seller is missing from buyer profile', async () => {
-      order.subtotalAmountCents = 100;
+      orderSimulation.totalOrderAmountCents = 100;
 
       credixMock.getBuyer = jest.fn().mockResolvedValue({
         availableCreditLimitAmountCents: 200,
         sellerConfigs: [{ taxId: 'not our tax id' }],
       });
 
-      let financingOptions = await service.simulateOrder(
-        order.buyerTaxId,
-        order.subtotalAmountCents,
-      );
+      let financingOptions = await service.simulateOrder(orderSimulation);
       expect(financingOptions).toStrictEqual([]);
     });
 
     it('should include credipay when buyer has credit', async () => {
-      order.subtotalAmountCents = 100;
-      credixMock.getBuyer = jest.fn().mockResolvedValue({
-        availableCreditLimitAmountCents: 200,
-        sellerConfigs: [
-          {
-            taxId: OUR_SELLER_ID,
-            baseTransactionFeePercentage: 0.02,
-            maxPaymentTermDays: 30,
-          },
-        ],
-      });
-
-      let financingOptions = await service.simulateOrder(
-        order.buyerTaxId,
-        order.subtotalAmountCents,
-      );
+      let financingOptions = await service.simulateOrder(orderSimulation);
 
       expect(financingOptions).toStrictEqual<FinancingOption[]>([
         {
           name: 'CREDIX_CREDIPAY',
-          baseFee: 0.02,
-          maxPaymentTermDays: 30,
+          simulation: orderSimulationResponse,
         },
       ]);
     });

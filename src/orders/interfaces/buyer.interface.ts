@@ -4,7 +4,7 @@ export interface SellerConfig {
   monthlyDiscountRate: number;
   transactionFeePercentage: number;
   baseTransactionFeePercentage: number;
-  variableTransactionFeeIntervalDays: number;
+  variableTransactionFeeIntervalDays?: number;
 }
 
 export interface Buyer {
